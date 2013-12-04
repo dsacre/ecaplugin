@@ -73,9 +73,9 @@ def make_soup(data):
         return bs4.BeautifulSoup(data, 'xml')
 
 
-class ArdourSession:
+class Ardour2Session:
     """
-    Extract plugin parameters from an Ardour session.
+    Extract plugin parameters from an Ardour 2.x session.
     """
     def __init__(self, data):
         soup = make_soup(data)
@@ -124,6 +124,50 @@ class ArdourSession:
         name = insert.Redirect.IO['name']
         uri = insert['unique-id']
         values = [p['value'] for p in insert.lv2.find_all('port')]
+        return LV2Plugin(uri, values, enabled, name)
+
+
+class Ardour3Session:
+    """
+    Extract plugin parameters from an Ardour 3.x session.
+    """
+    def __init__(self, data):
+        soup = make_soup(data)
+        self.tracks = []
+
+        # find and parse all routes (tracks and busses) in the session
+        for route in soup.Session.Routes.find_all('Route'):
+            self.tracks.append(self.parse_route(soup, route))
+
+    def parse_route(self, soup, route):
+        nchannels = len(route.find('IO', direction='Input').find_all('Port'))
+        samplerate = int(soup.Session['sample-rate'])
+        name = route.IO['name']
+
+        plugins = []
+        for processor in route.find_all('Processor'):
+            type = processor['type']
+            if type == 'ladspa':
+                plugins.append(self.parse_ladspa(processor))
+            elif type == 'lv2':
+                plugins.append(self.parse_lv2(processor))
+            else:
+                continue
+
+        return Track(plugins, nchannels, samplerate, name)
+
+    def parse_ladspa(self, processor):
+        enabled = processor['active'] == 'yes'
+        name = processor['name']
+        unique_id = int(processor['unique-id'])
+        values = [p['value'] for p in processor.ladspa.find_all('Port')]
+        return LadspaPlugin(unique_id, values, enabled, name)
+
+    def parse_lv2(self, processor):
+        enabled = processor['active'] == 'yes'
+        name = processor['name']
+        uri = processor['unique-id']
+        values = [p['value'] for p in processor.lv2.find_all('Port')]
         return LV2Plugin(uri, values, enabled, name)
 
 
@@ -285,7 +329,9 @@ if __name__ == '__main__':
         sys.exit("error: can't specify plugin indices when exporting whole session")
 
     if input_format == 'ardour':
-        session = ArdourSession(soup)
+        session = Ardour2Session(soup) if soup.Session['version'].startswith('2') \
+             else Ardour3Session(soup)
+
         if args.track_name:
             # output single track
             try:
