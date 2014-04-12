@@ -216,14 +216,17 @@ class EcasoundOutput:
 
     def format_track(self, track):
         """
-        Format a series of plugins.
+        Format the plugins of the given track.
         """
         # check if plugin indices are valid for the given track
+        for i in self.include_indices + self.exclude_indices:
+            if i < 0 or i >= len(track.plugins):
+                sys.exit("error: plugin index %d is out of range" % i)
         if self.include_indices:
-            for i in self.include_indices:
-                if i < 0 or i >= len(track.plugins):
-                    sys.exit("error: plugin index %d is out of range" % i)
-        indices = self.include_indices if self.include_indices else range(len(track.plugins))
+            indices = self.include_indices
+        else:
+            indices = [i for i in range(len(track.plugins))
+                            if i not in self.exclude_indices]
 
         # make list of plugins
         plugins = []
@@ -287,8 +290,11 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--track', type=str, metavar='NAME', dest='track_name',
                         help="name of single track/bus to be exported")
     parser.add_argument('-i', '--include', type=int, metavar='INDEX',
-                        dest='include_indices', action='append',
-                        help="indices of plugins to be exported (zero-based)")
+                        dest='include_indices', default=[], action='append',
+                        help="indices of plugins to be exported (zero-based, default: all)")
+    parser.add_argument('-e', '--exclude', type=int, metavar='INDEX',
+                        dest='exclude_indices', default=[], action='append',
+                        help="indices of plugins not to be exported (zero-based)")
     parser.add_argument('-d', '--include-disabled', action='store_true',
                         help="include disabled plugins as comments")
     try:
@@ -328,7 +334,9 @@ if __name__ == '__main__':
     # some more argument checking
     if args.chain_setup and not single_track:
         sys.exit("error: ecasound chain setup can only be generated for a single track")
-    if args.include_indices and not single_track:
+    if args.include_indices and args.exclude_indices:
+        sys.exit("error: can't specify plugin inclusion and exclusion at the same time")
+    if (args.include_indices or args.exclude_indices) and not single_track:
         sys.exit("error: can't specify plugin indices when exporting whole session")
 
     if input_format == 'ardour':
