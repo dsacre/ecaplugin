@@ -230,10 +230,10 @@ class EcasoundOutput:
         for i in indices:
             p = track.plugins[i]
             if p.enabled or self.include_disabled:
-                plugins.append(p)
+                plugins.append((i, p))
 
         separator = ' ' if self.single_line else '\n'
-        string = separator.join(self.format_plugin(p) for p in plugins)
+        string = separator.join(self.format_plugin(i, p) for i, p in plugins)
 
         if self.chain_setup:
             return '-f:f32,%d,%d -G:jack,%s,notransport -i:jack -o:jack\n\n%s' % (
@@ -245,15 +245,17 @@ class EcasoundOutput:
         else:
             return string
 
-    def format_plugin(self, plugin):
+    def format_plugin(self, index, plugin):
         """
-        Format a single plugin.
+        Format a single plugin, possibly including its index and name.
         """
-        return '%s%s%s' % (
-            ('# %s\n' % plugin.name) if plugin.name and not self.no_comments else '',
-            '# ' if not plugin.enabled else '',
-            plugin.format_cmdline(self.format_value)
-        )
+        description = ('# %d: %s\n' % (index, (plugin.name if plugin.name else ''))
+                       if not self.no_description else '')
+
+        comment = '# ' if not plugin.enabled else ''
+
+        return (description + comment +
+                plugin.format_cmdline(self.format_value))
 
     def format_value(self, value):
         """
@@ -280,22 +282,22 @@ if __name__ == '__main__':
                         help="output complete ecasound chain setup (.ecs)")
     parser.add_argument('-s', '--single-line', action='store_true',
                         help="output on single line (implies -c)")
-    parser.add_argument('-n', '--no-comments', action='store_true',
-                        help="do not output plugin names as comments")
+    parser.add_argument('-n', '--no-description', action='store_true',
+                        help="do not output plugin descriptions as comments")
     parser.add_argument('-t', '--track', type=str, metavar='NAME', dest='track_name',
                         help="name of single track/bus to be exported")
     parser.add_argument('-i', '--include', type=int, metavar='INDEX',
                         dest='include_indices', action='append',
                         help="indices of plugins to be exported (zero-based)")
     parser.add_argument('-d', '--include-disabled', action='store_true',
-                        help="include disabled plugins in output")
+                        help="include disabled plugins as comments")
     try:
         args = parser.parse_args()
     except IOError as ex:
         sys.exit(ex)
 
     if args.single_line:
-        args.no_comments = True
+        args.no_description = True
         args.include_disabled = False
     args.chain_setup = bool(args.chain_setup_params)
     args.client_name = args.chain_setup_params[0] if \
