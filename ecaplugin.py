@@ -3,7 +3,7 @@
 #
 # ecaplugin.py
 #
-# Copyright (C) 2013  Dominic Sacré  <dominic.sacre@gmx.de>
+# Copyright (C) 2014  Dominic Sacré  <dominic.sacre@gmx.de>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -63,7 +63,7 @@ class Track:
         self.name = name
 
 
-def make_soup(data):
+def serve_soup(data):
     """
     Turn data into soup, unless we already have soup.
     """
@@ -78,7 +78,7 @@ class Ardour2Session:
     Extract plugin parameters from an Ardour 2.x session.
     """
     def __init__(self, data):
-        soup = make_soup(data)
+        soup = serve_soup(data)
         self.tracks = []
 
         # find and parse all routes (tracks and busses) in the session
@@ -132,7 +132,7 @@ class Ardour3Session:
     Extract plugin parameters from an Ardour 3.x session.
     """
     def __init__(self, data):
-        soup = make_soup(data)
+        soup = serve_soup(data)
         self.tracks = []
 
         # find and parse all routes (tracks and busses) in the session
@@ -176,7 +176,7 @@ class JackRack:
     Extract plugin information from JACK Rack.
     """
     def __init__(self, data):
-        soup = make_soup(data)
+        soup = serve_soup(data)
 
         nchannels = int(soup.jackrack.channels.string)
         samplerate = int(soup.jackrack.samplerate.string)
@@ -218,12 +218,12 @@ class EcasoundOutput:
         """
         Format a series of plugins.
         """
-        # check of plugin indices are valid for the given track
-        if self.plugin_indices:
-            for i in self.plugin_indices:
+        # check if plugin indices are valid for the given track
+        if self.include_indices:
+            for i in self.include_indices:
                 if i < 0 or i >= len(track.plugins):
                     sys.exit("error: plugin index %d is out of range" % i)
-        indices = self.plugin_indices if self.plugin_indices else range(len(track.plugins))
+        indices = self.include_indices if self.include_indices else range(len(track.plugins))
 
         # make list of plugins
         plugins = []
@@ -275,19 +275,20 @@ if __name__ == '__main__':
     )
     parser.add_argument('filename', type=str, metavar='FILE',
                         help="Ardour or JACK Rack file name")
-    parser.add_argument('-t', '--track', type=str, metavar='NAME', dest='track_name',
-                        help="name of single track/bus to be exported")
-    parser.add_argument('-i', '--index', type=int, metavar='NUM', dest='plugin_indices', action='append',
-                        help="indices of plugins to be exported (zero-based)")
-    parser.add_argument('-n', '--no-comments', action='store_true',
-                        help="do not include plugin names as comments")
     parser.add_argument('-c', '--chain-setup', type=str, nargs='?', metavar='CLIENTNAME',
                         action='append', dest='chain_setup_params',
                         help="output complete ecasound chain setup (.ecs)")
     parser.add_argument('-s', '--single-line', action='store_true',
                         help="output on single line (implies -c)")
+    parser.add_argument('-n', '--no-comments', action='store_true',
+                        help="do not output plugin names as comments")
+    parser.add_argument('-t', '--track', type=str, metavar='NAME', dest='track_name',
+                        help="name of single track/bus to be exported")
+    parser.add_argument('-i', '--include', type=int, metavar='INDEX',
+                        dest='include_indices', action='append',
+                        help="indices of plugins to be exported (zero-based)")
     parser.add_argument('-d', '--include-disabled', action='store_true',
-                        help="include disabled plugins")
+                        help="include disabled plugins in output")
     try:
         args = parser.parse_args()
     except IOError as ex:
@@ -325,7 +326,7 @@ if __name__ == '__main__':
     # some more argument checking
     if args.chain_setup and not single_track:
         sys.exit("error: ecasound chain setup can only be generated for a single track")
-    if args.plugin_indices and not single_track:
+    if args.include_indices and not single_track:
         sys.exit("error: can't specify plugin indices when exporting whole session")
 
     if input_format == 'ardour':
