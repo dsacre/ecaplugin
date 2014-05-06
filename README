@@ -1,0 +1,26 @@
+ecaplugin.py - build ecasound command lines for LADSPA and LV2 plugins
+from Ardour or JACK-Rack sessions.
+
+Copyright (C) 2014  Dominic Sacré  <dominic.sacre@gmx.de>
+
+http://das.nasophon.de/ecaplugin/
+
+
+License:
+========
+
+ecaplugin.py is released under the terms of the GNU General Public License,
+version 2 or later.
+
+
+Requirements:
+=============
+
+* Python (2 or 3) [http://www.python.org/]
+* Beautiful Soup 4 [http://www.crummy.com/software/BeautifulSoup/]
+
+
+Documentation:
+==============
+
+Run 'python ecaplugin.py --help' for a list of command line options.
