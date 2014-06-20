@@ -239,7 +239,8 @@ class EcasoundOutput:
         string = separator.join(self.format_plugin(i, p) for i, p in plugins)
 
         if self.chain_setup:
-            return '-f:f32,%d,%d -G:jack,%s,notransport -i:jack -o:jack\n\n%s' % (
+            return ('-f:f32,%d,%d -G:jack,%s,notransport '
+                    '-i:jack -o:jack\n\n%s') % (
                 track.nchannels,
                 track.samplerate,
                 self.client_name,
@@ -252,8 +253,9 @@ class EcasoundOutput:
         """
         Format a single plugin, possibly including its index and name.
         """
-        description = ('# %d: %s\n' % (index, (plugin.name if plugin.name else ''))
-                       if not self.no_description else '')
+        description = ('# %d: %s\n' % (index,
+                                       (plugin.name if plugin.name else ''))
+                if not self.no_description else '')
 
         comment = '# ' if not plugin.enabled else ''
 
@@ -276,26 +278,37 @@ class EcasoundOutput:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description="Build ecasound command line arguments for LADSPA and LV2 plugins."
+        description=("Build ecasound command line arguments "
+                     "for LADSPA and LV2 plugins.")
     )
-    parser.add_argument('filename', type=str, metavar='FILE',
+    parser.add_argument('filename',
+                        type=str, metavar='FILE',
                         help="Ardour or JACK Rack file name")
-    parser.add_argument('-c', '--chain-setup', type=str, nargs='?', metavar='CLIENTNAME',
+    parser.add_argument('-c', '--chain-setup',
+                        type=str, nargs='?', metavar='CLIENTNAME',
                         action='append', dest='chain_setup_params',
                         help="output complete ecasound chain setup (.ecs)")
-    parser.add_argument('-s', '--single-line', action='store_true',
+    parser.add_argument('-s', '--single-line',
+                        action='store_true',
                         help="output on single line (implies -c)")
-    parser.add_argument('-n', '--no-description', action='store_true',
+    parser.add_argument('-n', '--no-description',
+                        action='store_true',
                         help="do not output plugin descriptions as comments")
-    parser.add_argument('-t', '--track', type=str, metavar='NAME', dest='track_name',
+    parser.add_argument('-t', '--track',
+                        type=str, metavar='NAME', dest='track_name',
                         help="name of single track/bus to be exported")
-    parser.add_argument('-i', '--include', type=int, metavar='INDEX',
+    parser.add_argument('-i', '--include',
+                        type=int, metavar='INDEX',
                         dest='include_indices', default=[], action='append',
-                        help="indices of plugins to be exported (zero-based, default: all)")
-    parser.add_argument('-e', '--exclude', type=int, metavar='INDEX',
+                        help="indices of plugins to be exported "
+                             "(zero-based, default: all)")
+    parser.add_argument('-e', '--exclude',
+                        type=int, metavar='INDEX',
                         dest='exclude_indices', default=[], action='append',
-                        help="indices of plugins not to be exported (zero-based)")
-    parser.add_argument('-d', '--include-disabled', action='store_true',
+                        help="indices of plugins not to be exported "
+                              "(zero-based)")
+    parser.add_argument('-d', '--include-disabled',
+                        action='store_true',
                         help="include disabled plugins as comments")
     try:
         args = parser.parse_args()
@@ -306,8 +319,10 @@ if __name__ == '__main__':
         args.no_description = True
         args.include_disabled = False
     args.chain_setup = bool(args.chain_setup_params)
-    args.client_name = args.chain_setup_params[0] if \
-        args.chain_setup_params and args.chain_setup_params[0] is not None else 'ecasound'
+    args.client_name = (args.chain_setup_params[0]
+            if args.chain_setup_params and
+               args.chain_setup_params[0] is not None
+            else 'ecasound')
 
     output = EcasoundOutput(args)
 
@@ -333,21 +348,26 @@ if __name__ == '__main__':
 
     # some more argument checking
     if args.chain_setup and not single_track:
-        sys.exit("error: ecasound chain setup can only be generated for a single track")
+        sys.exit("error: ecasound chain setup can only be generated "
+                 "for a single track")
     if args.include_indices and args.exclude_indices:
-        sys.exit("error: can't specify plugin inclusion and exclusion at the same time")
+        sys.exit("error: can't specify plugin inclusion and exclusion "
+                 "at the same time")
     if (args.include_indices or args.exclude_indices) and not single_track:
-        sys.exit("error: can't specify plugin indices when exporting whole session")
+        sys.exit("error: can't specify plugin indices when "
+                 "exporting whole session")
 
     if input_format == 'ardour':
-        session = Ardour2Session(soup) if soup.Session['version'].startswith('2') \
-             else Ardour3Session(soup)
+        session = (Ardour2Session(soup)
+                        if soup.Session['version'].startswith('2')
+              else Ardour3Session(soup))
 
         if args.track_name:
             # output single track
             try:
                 print(output.format_track(
-                    next(t for t in session.tracks if t.name == args.track_name)
+                    next(t for t in session.tracks
+                         if t.name == args.track_name)
                 ))
             except StopIteration:
                 sys.exit("error: no track named '%s'" % args.track_name)
