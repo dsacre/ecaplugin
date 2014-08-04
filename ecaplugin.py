@@ -77,7 +77,9 @@ class Ardour2Session:
     """
     Extract plugin parameters from an Ardour 2.x session.
     """
-    def __init__(self, data):
+    def __init__(self, data, args):
+        vars(self).update(vars(args))
+
         soup = serve_soup(data)
         self.tracks = []
 
@@ -109,8 +111,13 @@ class Ardour2Session:
                 continue
             (post_fader if is_post_fader else pre_fader).append(plugin)
 
-        # output all pre-fader plugins before any post-fader plugins
-        return Track(pre_fader + post_fader, nchannels, samplerate, name)
+        if self.pre_fader_only == self.post_fader_only:
+            # output all pre-fader plugins before any post-fader plugins
+            return Track(pre_fader + post_fader, nchannels, samplerate, name)
+        elif self.pre_fader_only:
+            return Track(pre_fader, nchannels, samplerate, name)
+        else:
+            return Track(post_fader, nchannels, samplerate, name)
 
     def parse_ladspa(self, insert):
         enabled = insert.Redirect['active'] == 'yes'
@@ -131,7 +138,9 @@ class Ardour3Session:
     """
     Extract plugin parameters from an Ardour 3.x session.
     """
-    def __init__(self, data):
+    def __init__(self, data, args):
+        vars(self).update(vars(args))
+
         soup = serve_soup(data)
         self.tracks = []
 
@@ -144,17 +153,29 @@ class Ardour3Session:
         samplerate = int(soup.Session['sample-rate'])
         name = route.IO['name']
 
-        plugins = []
+        pre_fader = []
+        post_fader = []
+        # add to pre_fader until we encounter the 'amp' processor
+        plugins = pre_fader
+
         for processor in route.find_all('Processor'):
             type = processor['type']
             if type == 'ladspa':
                 plugins.append(self.parse_ladspa(processor))
             elif type == 'lv2':
                 plugins.append(self.parse_lv2(processor))
+            elif type == 'amp':
+                # everything from now on is post-fader
+                plugins = post_fader
             else:
                 continue
 
-        return Track(plugins, nchannels, samplerate, name)
+        if self.pre_fader_only == self.post_fader_only:
+            return Track(pre_fader + post_fader, nchannels, samplerate, name)
+        elif self.pre_fader_only:
+            return Track(pre_fader, nchannels, samplerate, name)
+        else:
+            return Track(post_fader, nchannels, samplerate, name)
 
     def parse_ladspa(self, processor):
         enabled = processor['active'] == 'yes'
@@ -175,7 +196,8 @@ class JackRack:
     """
     Extract plugin information from JACK Rack.
     """
-    def __init__(self, data):
+    def __init__(self, data, args):
+        vars(self).update(vars(args))
         soup = serve_soup(data)
 
         nchannels = int(soup.jackrack.channels.string)
@@ -297,6 +319,12 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--track',
                         type=str, metavar='NAME', dest='track_name',
                         help="name of single track/bus to be exported")
+    parser.add_argument('-p', '--pre-fader-only',
+                        action='store_true',
+                        help="pre-fader plugins only")
+    parser.add_argument('-P', '--post-fader-only',
+                        action='store_true',
+                        help="post-fader plugins only")
     parser.add_argument('-i', '--include',
                         type=int, metavar='INDEX',
                         dest='include_indices', default=[], action='append',
@@ -353,14 +381,18 @@ if __name__ == '__main__':
     if args.include_indices and args.exclude_indices:
         sys.exit("error: can't specify plugin inclusion and exclusion "
                  "at the same time")
+    if ((args.pre_fader_only or args.post_fader_only) and
+            input_format != 'ardour'):
+        sys.exit("error: pre/post-fader only makes sense for Ardour sessions")
     if (args.include_indices or args.exclude_indices) and not single_track:
         sys.exit("error: can't specify plugin indices when "
                  "exporting whole session")
 
     if input_format == 'ardour':
-        session = (Ardour2Session(soup)
-                        if soup.Session['version'].startswith('2')
-              else Ardour3Session(soup))
+        if soup.Session['version'].startswith('2'):
+            session = Ardour2Session(soup, args)
+        else:
+            session = Ardour3Session(soup, args)
 
         if args.track_name:
             # output single track
@@ -376,5 +408,5 @@ if __name__ == '__main__':
             print(output.format_session(session.tracks))
 
     elif input_format == 'jackrack':
-        rack = JackRack(soup)
+        rack = JackRack(soup, args)
         print(output.format_track(rack.track))
