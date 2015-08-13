@@ -312,7 +312,7 @@ if __name__ == '__main__':
                         help="output complete ecasound chain setup (.ecs)")
     parser.add_argument('-s', '--single-line',
                         action='store_true',
-                        help="output on single line (implies -c)")
+                        help="output on single line (implies -n)")
     parser.add_argument('-n', '--no-description',
                         action='store_true',
                         help="do not output plugin descriptions as comments")
